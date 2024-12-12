@@ -20,7 +20,19 @@ endif()
 add_compile_definitions(WBRCU_HARDWARE_CONCURRENCY=${N})
 
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -flto -ffast-math -march=native")
+# -------------------------------------------------------------------
+#                       NUMA Support
+# Find and include NUMA library
+find_library(NUMA_LIB numa REQUIRED)
+if(NUMA_LIB)
+    message(STATUS "NUMA library found: ${NUMA_LIB}")
+else()
+    message(FATAL_ERROR "NUMA library not found")
+endif()
 
+include_directories(/usr/include)
+
+# -------------------------------------------------------------------
 # Dependencies
 find_package(folly REQUIRED)
 find_package(GTest REQUIRED)
@@ -32,7 +44,8 @@ add_library(wbrcu INTERFACE)
 set(WBRCU_INCLUDE_DIR "${PROJECT_SOURCE_DIR}/include")
 target_include_directories(wbrcu INTERFACE ${WBRCU_INCLUDE_DIR})
 target_compile_features(wbrcu INTERFACE cxx_std_20)
-target_link_libraries(wbrcu INTERFACE folly::folly)
+#target_link_libraries(wbrcu INTERFACE folly::folly)
+target_link_libraries(wbrcu INTERFACE folly::folly ${NUMA_LIB})
 
 
 add_subdirectory(test)
