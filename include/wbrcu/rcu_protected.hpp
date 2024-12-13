@@ -305,9 +305,14 @@ private:
             // Publish updates to readers.
             // auto old_ptr = m_ptr.exchange(copied, std::memory_order_release);
             // retire(old_ptr);
-            for (int i = 0; i <= max_node; ++i) {
-                auto old_ptr = m_node_ptrs[i].exchange(copied, std::memory_order_release);
-                retire(old_ptr, i);
+            if(is_numa_available){
+                for (int i = 0; i <= max_node; ++i) {
+                    auto old_ptr = m_node_ptrs[i].exchange(copied, std::memory_order_release);
+                    retire(old_ptr, i);
+                }
+            }else{
+                auto old_ptr = m_ptr.exchange(copied, std::memory_order_release);
+                retire(old_ptr);
             }
 
             // Check if there is new updates enqueued after we retire the old
@@ -349,14 +354,22 @@ private:
     //     m_epoch.store(prev);
     // }
     void retire(T* ptr, int node) {
-        constexpr static uint64_t cleanupThreshold = hardware_concurrency;
+        constexpr static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
         bool curr = m_epoch, prev = !curr;
-        auto& retireLists = m_node_retireLists[node];
+        if(is_numa_available){
+            auto& retireLists = m_node_retireLists[node];
+        }else{
+            auto& retireLists = m_retireLists;
+        }
         retireLists[curr].push_back(ptr);
 
         if (retireLists[curr].size() >= cleanupThreshold 
             && m_counters.epochIsClear(!m_epoch)) {
-            std::swap(m_node_finished[node], retireLists[prev]);
+            if(is_numa_available){
+                std::swap(m_node_finished[node], retireLists[prev]);
+            }else{
+                std::swap(m_finished, retireLists[prev]);
+            }
             for (auto p : retireLists[prev]) {
                 numa_free(p, sizeof(T)); 
             }
