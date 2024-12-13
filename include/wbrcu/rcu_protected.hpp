@@ -65,6 +65,14 @@ struct NumaAllocator {
     void deallocate(T* p, std::size_t n) {
         numa_free(p, n * sizeof(T));
     }
+    template <typename U>
+    bool operator==(const NumaAllocator<U>& other) const noexcept {
+        return node_id == other.node_id;
+    }
+    template <typename U>
+    bool operator!=(const NumaAllocator<U>& other) const noexcept {
+        return !(*this == other);
+    }
 };
 
 
