@@ -67,7 +67,7 @@ struct NumaAllocator {
     }
     template <typename U>
     bool operator==(const NumaAllocator<U>& other) const noexcept {
-        return node_id == other.node_id;
+        return node_id == other.node;
     }
     template <typename U>
     bool operator!=(const NumaAllocator<U>& other) const noexcept {
