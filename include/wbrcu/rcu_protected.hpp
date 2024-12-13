@@ -196,7 +196,7 @@ private:
     // allocated memory.
     std::vector<T*> m_finished;
 
-    std::vector<std::atomic<T*>> m_node_ptrs; 
+    std::deque<std::atomic<T*>> m_node_ptrs; 
     std::vector<std::vector<T*, NumaAllocator<T*>>> m_node_finished; 
     std::vector<std::array<std::vector<T*, NumaAllocator<T*>>, 2>> m_node_retireLists; 
 
