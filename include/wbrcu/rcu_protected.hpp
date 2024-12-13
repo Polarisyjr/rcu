@@ -94,7 +94,8 @@ public:
     explicit rcu_protected(T* ptr) {
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
-        m_node_ptrs.resize(max_node + 1);
+        //m_node_ptrs.resize(max_node + 1);
+        m_node_ptrs.reserve(max_node + 1);
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
@@ -104,8 +105,9 @@ public:
         for (int i = 0; i <= max_node; ++i) {
             if (is_numa_available) {
                 auto& allocator = allocators[i];
-                m_node_ptrs[i].store(static_cast<T*>(numa_alloc_onnode(sizeof(T), i)));
-                *m_node_ptrs[i].load() = *ptr;
+                T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
+                *numa_allocated_ptr = *ptr;
+                m_node_ptrs.emplace_back(std::atomic<T*>{numa_allocated_ptr}); 
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
