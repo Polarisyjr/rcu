@@ -114,7 +114,7 @@ public:
                     std::vector<T*, NumaAllocator<T*>>(allocator)};
             }
         }
-        #delete ptr;
+        //delete ptr;
     }
 
     ~rcu_protected() {
