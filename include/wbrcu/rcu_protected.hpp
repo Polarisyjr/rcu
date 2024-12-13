@@ -10,12 +10,26 @@
 #include <functional>
 #include <memory>
 #include <source_location>
+#include <numa.h>
+#include <numaif.h>
 
 namespace wbrcu
 {
 
 inline constexpr uint64_t hardware_concurrency = WBRCU_HARDWARE_CONCURRENCY;
+static int get_current_numa_node() {
+    int cpu = sched_getcpu();
+    assert(cpu >= 0);
+    int node = numa_node_of_cpu(cpu);
+    return node < 0 ? 0 : node;
+}
 
+static int max_numa_nodes = [](){
+    if (numa_available() == -1) {
+        return 1; 
+    }
+    return numa_max_node() + 1; 
+}();
 // Generate compile-time random number with seeding from source location
 consteval uint64_t rand(std::source_location const& loc = std::source_location::current()) {
     // Combine line, column and file_name hash
@@ -37,15 +51,97 @@ struct ThreadLocalTag
 {
 };
 
+template <typename T>
+struct NumaAllocator {
+    int node;
+    using value_type = T;
+
+    NumaAllocator(int numa_node) : node(numa_node) {}
+
+    T* allocate(std::size_t n) {
+        return static_cast<T*>(numa_alloc_onnode(n * sizeof(T), node));
+    }
+
+    void deallocate(T* p, std::size_t n) {
+        numa_free(p, n * sizeof(T));
+    }
+};
+
+
 template <typename T, uint64_t TagId = 0, uint64_t flushingThreshold = 20>
 class rcu_protected
 {
     using Tag = ThreadLocalTag<T, TagId>;
 public:
-    explicit rcu_protected(T* ptr) : m_ptr{ptr} {}
+    
+    // explicit rcu_protected(T* ptr) : m_ptr{ptr} {}
 
-    ~rcu_protected()
-    {
+    // ~rcu_protected()
+    // {
+    //     delete m_ptr.load();
+    //     for (auto p : m_retireLists[0]) { delete p; }
+    //     for (auto p : m_retireLists[1]) { delete p; }
+    //     for (auto p : m_finished) { delete p; }
+    // }
+    explicit rcu_protected(T* ptr) {
+        is_numa_available = numa_available() >= 0;
+        max_node = is_numa_available ? numa_max_node() : 0; 
+        m_node_ptrs.resize(max_node + 1);
+        m_node_finished.resize(max_node + 1);
+        m_node_retireLists.resize(max_node + 1);
+        std::vector<NumaAllocator<T*>> allocators;
+        for (int i = 0; i <= max_node; ++i) {
+            allocators.emplace_back(i);
+        }
+        for (int i = 0; i <= max_node; ++i) {
+            if (is_numa_available) {
+                auto& allocator = allocators[i];
+                m_node_ptrs[i].store(static_cast<T*>(numa_alloc_onnode(sizeof(T), i)));
+                *m_node_ptrs[i].load() = *ptr;
+                m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
+                m_node_retireLists[i] = {
+                    std::vector<T*, NumaAllocator<T*>>(allocator),
+                    std::vector<T*, NumaAllocator<T*>>(allocator)};
+            } else {
+                m_node_ptrs[i].store(new T(*ptr)); 
+                m_node_finished[i] = std::vector<T*>();
+                m_node_retireLists[i] = {std::vector<T*>(), std::vector<T*>()};
+            }
+        }
+        delete ptr;
+    }
+
+    ~rcu_protected() {
+        if (is_numa_available) {
+            for (int i = 0; i <= max_node; ++i) {
+                if (T* ptr = m_node_ptrs[i].load()) {
+                    numa_free(ptr, sizeof(T));
+                }
+                for (auto p : m_node_retireLists[i][0]) {
+                    numa_free(p, sizeof(T));
+                }
+                for (auto p : m_node_retireLists[i][1]) {
+                    numa_free(p, sizeof(T));
+                }
+                for (auto p : m_node_finished[i]) {
+                    numa_free(p, sizeof(T));
+                }
+            }
+        } else {
+            if (T* ptr = m_node_ptrs[0].load()) {
+                delete ptr;
+            }
+            for (auto p : m_node_retireLists[0][0]) {
+                delete p;
+            }
+            for (auto p : m_node_retireLists[0][1]) {
+                delete p;
+            }
+            for (auto p : m_node_finished[0]) {
+                delete p;
+            }
+        }
+        //global
         delete m_ptr.load();
         for (auto p : m_retireLists[0]) { delete p; }
         for (auto p : m_retireLists[1]) { delete p; }
@@ -86,14 +182,10 @@ public:
     }
 
 private:
+    bool is_numa_available;
+    int max_node; 
     // Pointer to current object that we returns to readers.
     std::atomic<T*> m_ptr;
-    // Current epoch. Previous epoch is !m_epoch.
-    folly::relaxed_atomic<bool> m_epoch{0};
-    // Counters for readers, each thread has a thread_local counter, it avoids
-    // reader contention that std::shared_mutex has.
-    detail::ThreadCachedReaders<Tag> m_counters;
-
     // Lists of objects that are not accessible by new readers and waiting to be
     // reclaimed.
     // m_retireLists[m_epoch] is the list of objects that are protected for
@@ -105,6 +197,16 @@ private:
     // them immediately, instead, we use it as the object pool of T to reuse the
     // allocated memory.
     std::vector<T*> m_finished;
+
+    std::vector<std::atomic<T*>> m_node_ptrs; 
+    std::vector<std::vector<T*, NumaAllocator<T*>>> m_node_finished; 
+    std::vector<std::array<std::vector<T*, NumaAllocator<T*>>, 2>> m_node_retireLists; 
+
+    // Current epoch. Previous epoch is !m_epoch.
+    folly::relaxed_atomic<bool> m_epoch{0};
+    // Counters for readers, each thread has a thread_local counter, it avoids
+    // reader contention that std::shared_mutex has.
+    detail::ThreadCachedReaders<Tag> m_counters;
 
     // Count of updates to do for updater, every call to update will increment
     // it. If it is greater than 0, then there is an updater in work, the call
