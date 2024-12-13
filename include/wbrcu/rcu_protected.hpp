@@ -95,13 +95,13 @@ public:
     explicit rcu_protected(T* ptr) {
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
-        std:cout<<is_numa_available<<" "<<max_node<<std::endl;
+        std::cout<<is_numa_available<<" "<<max_node<<std::endl;
         //m_node_ptrs.resize(max_node + 1);
         //m_node_ptrs.reserve(max_node + 1);
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
-        std:cout<<"ckpt1"<<std::endl;
+        std::cout<<"ckpt1"<<std::endl;
         // for (int i = 0; i <= max_node; ++i) {
         //     m_node_ptrs.emplace_back(nullptr); 
         // }
@@ -109,22 +109,22 @@ public:
         for (int i = 0; i <= max_node; ++i) {
             allocators.emplace_back(i);
         }
-        std:cout<<"ckpt2"<<std::endl;
+        std::cout<<"ckpt2"<<std::endl;
         for (int i = 0; i <= max_node; ++i) {
             if (is_numa_available) {
                 auto& allocator = allocators[i];
-                std:cout<<"ckpt3"<<std::endl;
+                std::cout<<"ckpt3"<<std::endl;
                 T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
                 *numa_allocated_ptr = *ptr;
-                std:cout<<"ckpt4"<<std::endl;
+                std::cout<<"ckpt4"<<std::endl;
                 m_node_ptrs.emplace_back(numa_allocated_ptr); 
-                std:cout<<"ckpt5"<<std::endl;
+                std::cout<<"ckpt5"<<std::endl;
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
-                std:cout<<"ckpt6"<<std::endl;
+                std::cout<<"ckpt6"<<std::endl;
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
                     std::vector<T*, NumaAllocator<T*>>(allocator)};
-                std:cout<<"ckpt7"<<std::endl;
+                std::cout<<"ckpt7"<<std::endl;
             }
         }
         delete ptr;
