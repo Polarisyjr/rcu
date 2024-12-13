@@ -95,10 +95,14 @@ public:
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
         //m_node_ptrs.resize(max_node + 1);
-        m_node_ptrs.reserve(max_node + 1);
+        //m_node_ptrs.reserve(max_node + 1);
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
+        for (int i = 0; i <= max_node; ++i) {
+            m_node_ptrs.emplace_back(nullptr); 
+        }
+
         for (int i = 0; i <= max_node; ++i) {
             allocators.emplace_back(i);
         }
