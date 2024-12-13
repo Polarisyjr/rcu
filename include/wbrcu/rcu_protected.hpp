@@ -102,10 +102,6 @@ public:
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
                     std::vector<T*, NumaAllocator<T*>>(allocator)};
-            } else {
-                m_node_ptrs[i].store(new T(*ptr)); 
-                m_node_finished[i] = std::vector<T*>();
-                m_node_retireLists[i] = {std::vector<T*>(), std::vector<T*>()};
             }
         }
         delete ptr;
@@ -125,18 +121,6 @@ public:
                 for (auto p : m_node_finished[i]) {
                     numa_free(p, sizeof(T));
                 }
-            }
-        } else {
-            if (T* ptr = m_node_ptrs[0].load()) {
-                delete ptr;
-            }
-            for (auto& retire_list : m_node_retireLists[0]) {
-                for (auto p : retire_list) {
-                    numa_free(p, sizeof(T));
-                }
-            }
-            for (auto p : m_node_finished[0]) {
-                delete p;
             }
         }
         //global
