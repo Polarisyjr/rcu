@@ -55,7 +55,7 @@ template <typename T>
 struct NumaAllocator {
     int node;
     using value_type = T;
-
+    NumaAllocator() : node(0) {}
     NumaAllocator(int numa_node) : node(numa_node) {}
 
     T* allocate(std::size_t n) {
