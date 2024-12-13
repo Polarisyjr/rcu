@@ -239,10 +239,9 @@ private:
     get_copy()
     {
         T* copied;
-        T& curr;
         if(is_numa_available){
             int node = get_current_numa_node();
-            curr = *m_node_ptrs[node].load(std::memory_order_relaxed);
+            T& curr = *m_node_ptrs[node].load(std::memory_order_relaxed);
             if (m_node_finished[node].empty()) { 
                 copied = static_cast<T*>(numa_alloc_onnode(sizeof(T), node)); 
             }
@@ -255,7 +254,7 @@ private:
                 *copied = curr;
             }
         }else{
-            curr = *m_ptr.load(std::memory_order_relaxed);
+            T& curr = *m_ptr.load(std::memory_order_relaxed);
             if (m_finished.empty()) { copied = new T(curr); }
             else
             {
