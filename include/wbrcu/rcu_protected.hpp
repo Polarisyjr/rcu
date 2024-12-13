@@ -154,6 +154,7 @@ public:
     auto
     get_ptr() noexcept
     {
+        int node = get_current_numa_node();
         rcu_read_lock();
         auto deleter = [&](T const*) { rcu_read_unlock(); };
         if(is_numa_available){
