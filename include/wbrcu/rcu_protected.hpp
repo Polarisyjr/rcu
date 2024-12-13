@@ -9,10 +9,11 @@
 #include <concepts>
 #include <functional>
 #include <memory>
+#include <deque>
 #include <source_location>
 #include <numa.h>
 #include <numaif.h>
-
+#include <iostream>
 namespace wbrcu
 {
 
@@ -55,7 +56,7 @@ template <typename T>
 struct NumaAllocator {
     int node;
     using value_type = T;
-
+    NumaAllocator() : node(0) {}
     NumaAllocator(int numa_node) : node(numa_node) {}
 
     T* allocate(std::size_t n) {
@@ -64,6 +65,14 @@ struct NumaAllocator {
 
     void deallocate(T* p, std::size_t n) {
         numa_free(p, n * sizeof(T));
+    }
+    template <typename U>
+    bool operator==(const NumaAllocator<U>& other) const noexcept {
+        return node == other.node;
+    }
+    template <typename U>
+    bool operator!=(const NumaAllocator<U>& other) const noexcept {
+        return !(*this == other);
     }
 };
 
@@ -83,32 +92,29 @@ public:
     //     for (auto p : m_retireLists[1]) { delete p; }
     //     for (auto p : m_finished) { delete p; }
     // }
-    explicit rcu_protected(T* ptr) {
+    explicit rcu_protected(T* ptr) : m_ptr{ptr} {
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
-        m_node_ptrs.resize(max_node + 1);
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
+
         for (int i = 0; i <= max_node; ++i) {
             allocators.emplace_back(i);
         }
         for (int i = 0; i <= max_node; ++i) {
             if (is_numa_available) {
                 auto& allocator = allocators[i];
-                m_node_ptrs[i].store(static_cast<T*>(numa_alloc_onnode(sizeof(T), i)));
-                *m_node_ptrs[i].load() = *ptr;
+                T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
+                *numa_allocated_ptr = *ptr;
+                m_node_ptrs.emplace_back(numa_allocated_ptr); 
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
                     std::vector<T*, NumaAllocator<T*>>(allocator)};
-            } else {
-                m_node_ptrs[i].store(new T(*ptr)); 
-                m_node_finished[i] = std::vector<T*>();
-                m_node_retireLists[i] = {std::vector<T*>(), std::vector<T*>()};
             }
         }
-        delete ptr;
+        //delete ptr;
     }
 
     ~rcu_protected() {
@@ -117,28 +123,14 @@ public:
                 if (T* ptr = m_node_ptrs[i].load()) {
                     numa_free(ptr, sizeof(T));
                 }
-                for (auto p : m_node_retireLists[i][0]) {
-                    numa_free(p, sizeof(T));
-                }
-                for (auto p : m_node_retireLists[i][1]) {
-                    numa_free(p, sizeof(T));
+                for (auto& retire_list : m_node_retireLists[i]) {
+                    for (auto p : retire_list) {
+                        numa_free(p, sizeof(T));
+                    }
                 }
                 for (auto p : m_node_finished[i]) {
                     numa_free(p, sizeof(T));
                 }
-            }
-        } else {
-            if (T* ptr = m_node_ptrs[0].load()) {
-                delete ptr;
-            }
-            for (auto p : m_node_retireLists[0][0]) {
-                delete p;
-            }
-            for (auto p : m_node_retireLists[0][1]) {
-                delete p;
-            }
-            for (auto p : m_node_finished[0]) {
-                delete p;
             }
         }
         //global
