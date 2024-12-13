@@ -9,6 +9,7 @@
 #include <concepts>
 #include <functional>
 #include <memory>
+#include <deque>
 #include <source_location>
 #include <numa.h>
 #include <numaif.h>
@@ -99,9 +100,9 @@ public:
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
-        for (int i = 0; i <= max_node; ++i) {
-            m_node_ptrs.emplace_back(nullptr); 
-        }
+        // for (int i = 0; i <= max_node; ++i) {
+        //     m_node_ptrs.emplace_back(nullptr); 
+        // }
 
         for (int i = 0; i <= max_node; ++i) {
             allocators.emplace_back(i);
@@ -111,7 +112,7 @@ public:
                 auto& allocator = allocators[i];
                 T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
                 *numa_allocated_ptr = *ptr;
-                m_node_ptrs.back().store(numa_allocated_ptr); 
+                m_node_ptrs.emplace_back(numa_allocated_ptr); 
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
@@ -194,7 +195,7 @@ private:
     // allocated memory.
     std::vector<T*> m_finished;
 
-    std::vector<std::atomic<T*>> m_node_ptrs; 
+    std::deque<std::atomic<T*>> m_node_ptrs; 
     std::vector<std::vector<T*, NumaAllocator<T*>>> m_node_finished; 
     std::vector<std::array<std::vector<T*, NumaAllocator<T*>>, 2>> m_node_retireLists; 
 
