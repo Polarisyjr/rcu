@@ -95,41 +95,26 @@ public:
     explicit rcu_protected(T* ptr) : m_ptr{ptr} {
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
-        std::cout<<is_numa_available<<" "<<max_node<<std::endl;
-        //m_node_ptrs.resize(max_node + 1);
-        //m_node_ptrs.reserve(max_node + 1);
         m_node_finished.resize(max_node + 1);
         m_node_retireLists.resize(max_node + 1);
         std::vector<NumaAllocator<T*>> allocators;
-        std::cout<<"ckpt1"<<std::endl;
-        // for (int i = 0; i <= max_node; ++i) {
-        //     m_node_ptrs.emplace_back(nullptr); 
-        // }
 
         for (int i = 0; i <= max_node; ++i) {
             allocators.emplace_back(i);
         }
-        std::cout<<"ckpt2"<<std::endl;
         for (int i = 0; i <= max_node; ++i) {
-            std::cout<<"ckpt8"<<std::endl;
             if (is_numa_available) {
                 auto& allocator = allocators[i];
-                std::cout<<"ckpt3"<<std::endl;
                 T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
                 *numa_allocated_ptr = *ptr;
-                std::cout<<"ckpt4"<<std::endl;
                 m_node_ptrs.emplace_back(numa_allocated_ptr); 
-                std::cout<<"ckpt5"<<std::endl;
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
-                std::cout<<"ckpt6"<<std::endl;
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
                     std::vector<T*, NumaAllocator<T*>>(allocator)};
-                std::cout<<"ckpt7"<<std::endl;
             }
         }
-        std::cout<<"ckpt9"<<std::endl;
-        //delete ptr;
+        delete ptr;
     }
 
     ~rcu_protected() {
@@ -138,17 +123,14 @@ public:
                 if (T* ptr = m_node_ptrs[i].load()) {
                     numa_free(ptr, sizeof(T));
                 }
-                std::cout<<"ckpt11"<<std::endl;
                 for (auto& retire_list : m_node_retireLists[i]) {
                     for (auto p : retire_list) {
                         numa_free(p, sizeof(T));
                     }
                 }
-                std::cout<<"ckpt12"<<std::endl;
                 for (auto p : m_node_finished[i]) {
                     numa_free(p, sizeof(T));
                 }
-                std::cout<<"ckpt13"<<std::endl;
             }
         }
         //global
@@ -156,7 +138,6 @@ public:
         for (auto p : m_retireLists[0]) { delete p; }
         for (auto p : m_retireLists[1]) { delete p; }
         for (auto p : m_finished) { delete p; }
-        std::cout<<"ckpt14"<<std::endl;
     }
 
     // Returns a protected pointer to T that will automatically unlock when
