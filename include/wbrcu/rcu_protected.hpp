@@ -111,6 +111,7 @@ public:
         }
         std::cout<<"ckpt2"<<std::endl;
         for (int i = 0; i <= max_node; ++i) {
+            std::cout<<"ckpt8"<<std::endl;
             if (is_numa_available) {
                 auto& allocator = allocators[i];
                 std::cout<<"ckpt3"<<std::endl;
@@ -127,6 +128,7 @@ public:
                 std::cout<<"ckpt7"<<std::endl;
             }
         }
+        std::cout<<"ckpt9"<<std::endl;
         delete ptr;
     }
 
