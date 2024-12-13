@@ -312,7 +312,7 @@ private:
                 }
             }else{
                 auto old_ptr = m_ptr.exchange(copied, std::memory_order_release);
-                retire(old_ptr);
+                retire(old_ptr,0);
             }
 
             // Check if there is new updates enqueued after we retire the old
@@ -353,8 +353,9 @@ private:
     //     m_retireLists[prev].clear();
     //     m_epoch.store(prev);
     // }
-   void retire(T* ptr, int node) {
-        constexpr static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
+    void retire(T* ptr, int node) {
+        //constexpr static const static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
+        static const static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
         bool curr = m_epoch, prev = !curr;
         if(is_numa_available){
             auto& retireLists = m_node_retireLists[node];
@@ -363,8 +364,6 @@ private:
                 && m_counters.epochIsClear(!m_epoch)) {
                 if(is_numa_available){
                     std::swap(m_node_finished[node], retireLists[prev]);
-                }else{
-                    std::swap(m_finished, retireLists[prev]);
                 }
                 for (auto p : retireLists[prev]) {
                     numa_free(p, sizeof(T)); 
@@ -379,7 +378,6 @@ private:
             {
                 return;
             }
-
             // All readers locking previous epoch have finished, it is now safe to
             // reclaim any object in m_retireLists[prev] and increment current
             // epoch.
