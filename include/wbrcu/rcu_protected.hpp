@@ -355,7 +355,7 @@ private:
     // }
     void retire(T* ptr, int node) {
         //constexpr static const static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
-        static const static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
+        static const uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
         bool curr = m_epoch, prev = !curr;
         if(is_numa_available){
             auto& retireLists = m_node_retireLists[node];
