@@ -129,7 +129,7 @@ public:
             }
         }
         std::cout<<"ckpt9"<<std::endl;
-        delete ptr;
+        #delete ptr;
     }
 
     ~rcu_protected() {
