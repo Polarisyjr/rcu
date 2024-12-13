@@ -13,7 +13,7 @@
 #include <source_location>
 #include <numa.h>
 #include <numaif.h>
-
+#include <iostream>
 namespace wbrcu
 {
 
