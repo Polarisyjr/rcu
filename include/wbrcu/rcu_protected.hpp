@@ -128,6 +128,7 @@ public:
                 std::cout<<"ckpt7"<<std::endl;
             }
         }
+        m_ptr(ptr);
         std::cout<<"ckpt9"<<std::endl;
         //delete ptr;
     }
