@@ -353,30 +353,43 @@ private:
     //     m_retireLists[prev].clear();
     //     m_epoch.store(prev);
     // }
-    void retire(T* ptr, int node) {
+   void retire(T* ptr, int node) {
         constexpr static uint64_t cleanupThreshold = hardware_concurrency/(max_node+1);
         bool curr = m_epoch, prev = !curr;
         if(is_numa_available){
             auto& retireLists = m_node_retireLists[node];
+            retireLists[curr].push_back(ptr);
+            if (retireLists[curr].size() >= cleanupThreshold 
+                && m_counters.epochIsClear(!m_epoch)) {
+                if(is_numa_available){
+                    std::swap(m_node_finished[node], retireLists[prev]);
+                }else{
+                    std::swap(m_finished, retireLists[prev]);
+                }
+                for (auto p : retireLists[prev]) {
+                    numa_free(p, sizeof(T)); 
+                }
+                retireLists[prev].clear();
+                m_epoch.store(prev);
+            }
         }else{
-            auto& retireLists = m_retireLists;
-        }
-        retireLists[curr].push_back(ptr);
+            m_retireLists[curr].push_back(ptr);
+            if (m_retireLists[curr].size() < cleanupThreshold
+                || !m_counters.epochIsClear(prev))
+            {
+                return;
+            }
 
-        if (retireLists[curr].size() >= cleanupThreshold 
-            && m_counters.epochIsClear(!m_epoch)) {
-            if(is_numa_available){
-                std::swap(m_node_finished[node], retireLists[prev]);
-            }else{
-                std::swap(m_finished, retireLists[prev]);
-            }
-            for (auto p : retireLists[prev]) {
-                numa_free(p, sizeof(T)); 
-            }
-            retireLists[prev].clear();
+            // All readers locking previous epoch have finished, it is now safe to
+            // reclaim any object in m_retireLists[prev] and increment current
+            // epoch.
+            std::swap(m_finished, m_retireLists[prev]);
+            for (auto p : m_retireLists[prev]) { delete p; }
+            m_retireLists[prev].clear();
             m_epoch.store(prev);
         }
     }
 };
 
 } // namespace wbrcu
+
