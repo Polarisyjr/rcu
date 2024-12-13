@@ -138,14 +138,17 @@ public:
                 if (T* ptr = m_node_ptrs[i].load()) {
                     numa_free(ptr, sizeof(T));
                 }
+                std::cout<<"ckpt11"<<std::endl;
                 for (auto& retire_list : m_node_retireLists[i]) {
                     for (auto p : retire_list) {
                         numa_free(p, sizeof(T));
                     }
                 }
+                std::cout<<"ckpt12"<<std::endl;
                 for (auto p : m_node_finished[i]) {
                     numa_free(p, sizeof(T));
                 }
+                std::cout<<"ckpt13"<<std::endl;
             }
         }
         //global
@@ -153,6 +156,7 @@ public:
         for (auto p : m_retireLists[0]) { delete p; }
         for (auto p : m_retireLists[1]) { delete p; }
         for (auto p : m_finished) { delete p; }
+        std::cout<<"ckpt14"<<std::endl;
     }
 
     // Returns a protected pointer to T that will automatically unlock when
