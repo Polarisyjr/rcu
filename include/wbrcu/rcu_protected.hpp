@@ -117,11 +117,10 @@ public:
                 if (T* ptr = m_node_ptrs[i].load()) {
                     numa_free(ptr, sizeof(T));
                 }
-                for (auto p : m_node_retireLists[i][0]) {
-                    numa_free(p, sizeof(T));
-                }
-                for (auto p : m_node_retireLists[i][1]) {
-                    numa_free(p, sizeof(T));
+                for (auto& retire_list : m_node_retireLists[i]) {
+                    for (auto p : retire_list) {
+                        numa_free(p, sizeof(T));
+                    }
                 }
                 for (auto p : m_node_finished[i]) {
                     numa_free(p, sizeof(T));
@@ -131,11 +130,10 @@ public:
             if (T* ptr = m_node_ptrs[0].load()) {
                 delete ptr;
             }
-            for (auto p : m_node_retireLists[0][0]) {
-                delete p;
-            }
-            for (auto p : m_node_retireLists[0][1]) {
-                delete p;
+            for (auto& retire_list : m_node_retireLists[0]) {
+                for (auto p : retire_list) {
+                    numa_free(p, sizeof(T));
+                }
             }
             for (auto p : m_node_finished[0]) {
                 delete p;
