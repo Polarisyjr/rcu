@@ -308,6 +308,8 @@ private:
             if(is_numa_available){
                 for (int i = 0; i <= max_node; ++i) {
                     auto old_ptr = m_node_ptrs[i].exchange(copied, std::memory_order_release);
+                }
+                for (int i = 0; i <= max_node; ++i) {
                     retire(old_ptr, i);
                 }
             }else{
