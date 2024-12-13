@@ -107,7 +107,8 @@ public:
                 auto& allocator = allocators[i];
                 T* numa_allocated_ptr = static_cast<T*>(numa_alloc_onnode(sizeof(T), i));  
                 *numa_allocated_ptr = *ptr;
-                m_node_ptrs.emplace_back(std::atomic<T*>{numa_allocated_ptr}); 
+                m_node_ptrs.emplace_back(nullptr); 
+                m_node_ptrs.back().store(numa_allocated_ptr); 
                 m_node_finished[i] = std::vector<T*, NumaAllocator<T*>>(allocator);
                 m_node_retireLists[i] = {
                     std::vector<T*, NumaAllocator<T*>>(allocator),
