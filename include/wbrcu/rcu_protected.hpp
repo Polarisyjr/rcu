@@ -92,7 +92,7 @@ public:
     //     for (auto p : m_retireLists[1]) { delete p; }
     //     for (auto p : m_finished) { delete p; }
     // }
-    explicit rcu_protected(T* ptr) {
+    explicit rcu_protected(T* ptr) : m_ptr{ptr} {
         is_numa_available = numa_available() >= 0;
         max_node = is_numa_available ? numa_max_node() : 0; 
         std::cout<<is_numa_available<<" "<<max_node<<std::endl;
@@ -128,7 +128,6 @@ public:
                 std::cout<<"ckpt7"<<std::endl;
             }
         }
-        m_ptr(ptr);
         std::cout<<"ckpt9"<<std::endl;
         //delete ptr;
     }
